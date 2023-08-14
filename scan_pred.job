@@ -1,0 +1,114 @@
+#!/bin/tcsh -f 
+
+set lst=$1
+
+
+set mmm=$0:r
+set ddd=`echo 1 | awk 'BEGIN{cc="'$mmm'"}{for(l=1;l<=length(cc);l++) if(substr(cc,l,1)=="/") ip=l}END{print substr(cc,1,ip-1)}'`
+set ddd2=`echo $ddd | awk '{print substr($1,1,2)}'`
+if ( $ddd2 == "./" ) set ddd=`pwd`
+if ( $ddd2 == ".." ) set ddd=`pwd`"/$ddd"
+
+
+#echo $ddd
+
+
+
+if( $lst == "" ) then
+echo give a target list
+exit
+endif
+
+if ( -e __tmpfsns.txt )  rm -if __tmpfsns.txt 
+touch __tmpfsns.txt
+
+set src2=$ddd/../str
+set src0=$src2/pfam
+set freq=$ddd/freq
+
+
+set i=1
+lpi:
+
+#set me=`cat $lst | awk 'BEGIN{i=0}{i=i+1;if(i=="'$i'") print $3}'`
+set me=`cat $lst | awk 'BEGIN{i=0}{i=i+1;if(i=="'$i'") print $1}'`
+if ( $me == "" ) then 
+$ddd/genfea.job __tmpfsns.txt  $ddd 
+cp -u __tmpfsns.txt $lst"_fea.txt"
+cp -u __tmpfsns.txt_pred.out  $lst"_pred.out" 
+rm -if _*
+exit 
+endif 
+
+
+set me2=`grep $me  $ddd/list_gene  | awk '{if($3=="'$me'") print $1}' |head -1`
+
+if ( $me2 == "" ) goto ok4
+
+cat $lst | awk 'BEGIN{i=0;xxx="CMFILVWYAGTSQNEDHRKP";yyy="CYSMETPHEILELEUVALTRPTYRALAGLYTHRSERGLNASNGLUASPHISARGLYSPRO";}\
+{i=i+1;if(i=="'$i'"){c="X";for(l=1;l<=20;l++){n=3*(l-1)+1;if(substr(yyy,n,3)==$3) c=substr(xxx,l,1)};  print "0",$2,c}}'  >! _me0.txt 
+
+
+
+rm -if _me1.txt
+touch _me1.txt
+set n0=`wc -l  _me0.txt | awk '{print $1}'`
+if ( $n0 == 0 ) goto ok4
+set n=1
+lpn:
+set pos=`head -$n _me0.txt |tail -1  | awk '{print $2}' | awk 'BEGIN{FS=";"}{print $1}'`
+if ( $pos == "" ) goto ok5
+set q1=`grep $me2 $ddd/human_map2essential.lst | wc -l | awk '{print $1}'`
+set q2=0.0
+set q3=`grep $me2  $ddd/human2disease.lst | wc -l | awk '{print $1}'`
+#set q3=0
+set me3=`grep $me2  $ddd/list_gene | awk '{if($1=="'$me2'") print $2}'`
+if ( $me3 != "XXXXXX" && $me3 != "" ) then
+set q32=`grep $me3  $ddd/gencard.txt | awk '{if($1=="'$me3'") print $1}' | wc -l | awk '{print $1+'$q3'}'`
+set q3=$q32
+endif
+
+set q4=`grep $me2  $ddd/list_node | awk '{print $2}'`
+
+if ( -e $freq/$me2.freq ) then
+set q2=`cat $freq/$me2.freq  | awk 'BEGIN{c=0;i=0.0001}{if($1>='$pos') {c=c+$2;i=i+1}}END{print c/i/20.0}'`
+endif
+#echo $me2 $q1 $q2
+head -$n _me0.txt |tail -1  | awk '{print $0,"'$q1'","'$q2'","'$q3'","'$q4'"}' >> _me1.txt
+
+ok5:
+@ n = $n + 1
+if ( $n <= $n0 ) goto lpn
+
+set nnn=`head -1 _me1.txt  | awk 'BEGIN{l=0}{if($7!="") l=1;}END{print l}'`
+if ( $nnn == 0 ) goto ok4
+
+
+
+
+if ( ! -e $src0/${me2} ) then
+set id=`grep $me2 $ddd/result_code.lst | awk '{print $2}'`
+if ( $id == "" ) goto ok4
+echo $me $me2 | awk '{print "\047" "_me1.txt\047","\047'$src2'/'$id'/"  $2 "/" $2 "_boundary.txt\047","\047" "'$src2'/'$id'/" $2 "/" $2 ".ent\047"}' > ! _tmp.inp
+set fil2=`echo $me $me2 | awk '{print "'$src2'/'$id'/"  $2 "/" $2 "_boundary.txt"}'`
+
+else
+
+set nr=`tail -1 $src0/$me2/${me2}_boundary.txt | awk '{print $3}'`
+if ( $nr > 5000 ) goto ok4
+echo $me2  | awk '{print "\047_me1.txt\047","\047'$src0'/"  $1 "/" $1 "_boundary.txt\047","\047'$src0'/"  $1 "/" $1 ".ent\047"}' > ! _tmp.inp
+set fil2=`echo $me2  | awk '{print "'$src0'/"  $1 "/" $1 "_boundary.txt"}'`
+endif 
+
+if ( ! -e $fil2 ) goto ok4
+
+$ddd/genfea_cnt_v3_bcnt2_nocomp_ns<_tmp.inp | awk '{print $0,"'$me'","'$me2'"}' >> __tmpfsns.txt 
+
+
+ok4:
+
+
+ok2:
+
+@ i = $i + 1
+goto lpi

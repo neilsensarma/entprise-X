@@ -1,0 +1,29 @@
+#!/bin/tcsh -f
+
+
+
+set fea=$1
+if ( $1 == "" ) exit 
+set ddd=$2
+
+#cat  PMX0_1_modele.inp > ! modele.inp
+cat $fea > ! _test_fea.txt 
+head -3 $ddd/x10_pred.inp > ! _x10.inp
+head -3 $ddd/x20_pred.inp > ! _x20.inp
+echo $ddd | awk '{print "\047" $1 "/PMX0_1_modele.inp\047"}' >> _x10.inp
+echo $ddd | awk '{print "\047" $1 "/PMX0_2_modele.inp\047"}' >> _x20.inp
+
+$ddd/treebind_rn_ca_n8<_x10.inp 
+
+cat fort.55 > ! fort.55_1
+
+#cat  PMX0_2_modele.inp > ! modele.inp
+
+$ddd/treebind_rn_ca_n8<_x20.inp
+
+cat fort.55 > ! fort.55_2
+
+paste fort.55_1 fort.55_2 _test_fea.txt  | awk '{print $53,$52,0.5*($2+$4)}' > ! $fea"_pred.out" 
+rm -if fort.55_1 fort.55_2 fort.55
+
+
